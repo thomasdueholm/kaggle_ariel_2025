@@ -1,0 +1,9 @@
+{
+    "RAW_DATA_DIR": "./data/ariel-data-challenge-2025",
+    "MODEL_CHECKPOINT_DIR": "./models/",
+    "CACHE_DIR": "./cache/",
+    "LOCAL_CACHE_DIR": "./local_cache/",
+    "PARAMETERS_DIR": "./parameters/",
+    "LOGS_DIR": "./logs/",
+    "SUBMISSION_DIR": "./submissions/"
+}
