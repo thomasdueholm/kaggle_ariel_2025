@@ -99,13 +99,13 @@ I have worked with time-series data in the above mentioned trading strategy proj
 \item 
 \emph{Jane Street Real-Time Market Data Forecasting}
 \end{itemize}
-In some sense I am starting to specialize in extracting information from noisy time series data, which was also what appealed to me about the \emph{NeurIPS -- Ariel Data Challenge 2025}.
+In some sense I am starting to specialize in extracting information from noisy time series data, which was what appealed to me about the \emph{NeurIPS -- Ariel Data Challenge 2025}.
 
 I also made use of experience from the competition \emph{ICR -- Identifying Age-Related Conditions}. Specifically, that competition taught me what \emph{not} to do when working with a small dataset.
 
 All of these experiences have contributed to proficiency with the automatic differentiation library JAX, understanding of how to limit overfitting, and various other machine learning skills.
 
-From my time at Nordea, I have some experience with the Kalman smoother from the statsmodels python package. In this project I implemented a Kalman smoother myself with JAX. The automatic initialization of parameters for this Kalman smoother was something I invented for this project, i.e., it was not something I had used previously.
+From my time at Nordea, I have some experience with the Kalman smoother from the statsmodels python package. In this project I implemented a Kalman smoother myself with JAX. The automatic initialization of parameters for the Kalman smoother was something I invented for this project, i.e., it was not something I had used previously.
 
 
 \subsection{Time spent}
@@ -116,14 +116,32 @@ About six weeks were spent on the competition.
 
 \section{Summary}\label{summary}
 
-TODO.
-
-
+I implemented a bespoke model for simulating the physics involved in a planet moving in front of a star. The model was implemented with JAX, and the automatic differentiation made it possible to fit simulated transits to the given data. The main challenge was that it was non-trivial to optimize the parameters of the model without ending up in an undesirable solution. Given the output from the physics-based model, I estimated transit depth with a very simple linear regression model and standard deviation with a neural network. In particular, the transit depth in my solution is independent of the standard deviation.
 
 
 \section{Overall model architecture}
 
+The idea for my solution is to implement a model that mimics the physics of a planet moving in front of a star, while explicitly taking limb darkening into account. This is done to obtain high quality estimates of the transit depth, which then require minimal use of modeling later in the pipeline. In fact, the final depth estimates for the submission are simply constructed with linear regression on answers from the physical model. In particular, the depth is estimated independently of the standard deviation. The standard deviation is modeled with small neural networks. These downstream models were required to be simple due to the small number of planets in the training data.
 
+Before applying the physics-based model, a starting point for the search is provided by a simpler model that involves Kalman Smoothers. I also implemented preprocessing similar to what was suggested by the organizers. Finally, I made use of principal component analysis to refine the spectrum produced by the physical model.
+
+At a high level, my solution contains the following elements:
+\begin{enumerate}
+\item 
+Preprocessing (Section~\ref{sec:preprocessing})
+\item 
+Initial depth and transit window estimation (Section~\ref{sec:depth})
+\item 
+Depth estimation with explicit limb darkening (Section~\ref{sec:limb_darkening})
+\item 
+A simple linear regression model for producing the depth for the submission (Section~\ref{subsec:linear_regression})
+\item 
+A neural network for producing the standard deviation for the submission (Section~\ref{sec:uncertainty})
+\item 
+A distinction between whether or not to use principal component analysis (PCA) (Section~\ref{sec:pca})
+\end{enumerate}
+
+All in all, my approach ended up being relatively complex, but I believe that the use of explicit modeling of physics may be worth the effort to obtain good results. The main downside is that such an approach is unlikely to generalize to other problems, which makes it inherently less interesting.
 
 
 \section{Preprocessing}\label{sec:preprocessing}
@@ -168,7 +186,7 @@ Robustness of transit identification relies on the produced curves being very sm
 	\mu_{t+1} &= \mu_t + \nu_t + \xi_t &\hspace{-3cm} \xi_t \sim N(0, \sigma_\xi^2) \\
 	\nu_{t+1} &= \nu_t + \zeta_t &\hspace{-3cm} \zeta_t \sim N(0, \sigma_\zeta^2)
 \end{align*}
-$y_t$ is the observed data, $\mu_t$ is the level, and $\nu_t$ is the trend. The smoothness is determined by the noise parameters $\sigma_\epsilon$, $\sigma_\xi$, and $\sigma_\zeta$. Instead of fitting such parameters to the data, I generate the parameters for a particular graph from three corresponding hyperparameters and a window length $k$. More precisely, I compute a moving average with the given window length $k$ as a stand-in for the level, and a moving average of that as a stand-in for the trend. $\sigma_\epsilon$, $\sigma_\xi$, and $\sigma_\zeta$ are products of the respective hyperparameters and the following quantities. For $\sigma_\epsilon$, the variance around the stand-in level. For $\sigma_\xi$, the maximum absolute change in stand-in level. For $\sigma_\zeta$, the maximum absolute change in stand-in trend.
+Where $y_t$ is the observed data, $\mu_t$ is the level, and $\nu_t$ is the trend. The smoothness is determined by the noise parameters $\sigma_\epsilon$, $\sigma_\xi$, and $\sigma_\zeta$. Instead of fitting such parameters to the data, I generate the parameters for a particular graph from three corresponding hyperparameters and a window length $k$. More precisely, I compute a moving average with the given window length $k$ as a stand-in for the level, and a moving average of that as a stand-in for the trend. $\sigma_\epsilon$, $\sigma_\xi$, and $\sigma_\zeta$ are products of the respective hyperparameters and the following quantities. For $\sigma_\epsilon$, the variance around the stand-in level. For $\sigma_\xi$, the maximum absolute change in stand-in level. For $\sigma_\zeta$, the maximum absolute change in stand-in trend. I did not get around to optimizing the hyperparameters, so they were set manually.
 
 Additionally, the Kalman Smoother requires $\mu_0$ and $\nu_0$ for initialization. Let $y_1, y_2, \dots, y_N$ be the sequence of observed data. $\mu_0$ and $\nu_0$ are set to:
 \begin{align*}
@@ -188,9 +206,6 @@ In some cases the beginning or the end of the transit falls outside the availabl
 
 
 \section{Depth estimation with explicit limb darkening}\label{sec:limb_darkening}
-
-Outliers
-
 
 \subsection{Transit simulation}
 
@@ -214,7 +229,7 @@ $d_{min}$: The closest distance from the center of the planet to the center of t
 \item 
 $t_{min}$: The time at which the planet is closest to the center of the star. The timeframe goes from 0 to 1.
 \item 
-$t$: The transit starts when the planet first overlaps the star, and ends when the planet no longer overlaps the star. The transit length $t$ is the time between these two points. Note that the transit length can be greater than 1 if the timeframe does not cover the entire transit.
+$t_{length}$: The transit starts when the planet first overlaps the star, and ends when the planet no longer overlaps the star. The transit length $t_{length}$ is the time between these two points. Note that the transit length can be greater than 1 if the timeframe does not cover the entire transit.
 \end{itemize}
 
 The parameters are assumed to satisfy:
@@ -227,7 +242,7 @@ The parameters are assumed to satisfy:
 
 Importantly, the transit is differentiable with respect to these six parameters, which means that the parameters can be optimized to produce the transit with the best fit for some training data.
 
-Figure~\ref{fig:limb_darkening} shows examples of the transits generated by my model for the same parameters, except without and with limb darkening. Note that without limb darkening, the valley of the transit is very flat, because the observed light mainly depends on whether the planet is fully inside the boundary of the star or not. With limb darkening, the observed light continues being reduced as the planet gets closer to the center of the star, because it then covers an area with higher intensity.
+Figure~\ref{fig:limb_darkening} shows examples of the transits generated by my model for the same parameters, without and with limb darkening. Note that without limb darkening, the valley of the transit is very flat, because the observed light mainly depends on whether the planet is fully inside the boundary of the star or not. With limb darkening, the observed light continues being reduced as the planet gets closer to the center of the star, because it then covers an area with higher intensity.
 
 \begin{figure}
 	\begin{center}
@@ -239,16 +254,98 @@ Figure~\ref{fig:limb_darkening} shows examples of the transits generated by my m
 \end{figure}
 
 
-\subsection{Parameter optimization}
+\subsection{Parameter optimization}\label{subsec:params}
 
-initialization
+The parameters optimizing the fit of the simulated transits to the given signals are refined in several stages. We are given a time series for FGS1 and 282 time series for AIRS, defining a spectrum, as well as the transit depth, transit start, and transit end from the initial model described in Section~\ref{sec:depth}. Our first goal is to compute transits for three time series:
+\begin{enumerate}
+\item 
+FGS1.
+\item 
+The sum of AIRS over the spectrum.
+\item 
+The weighted sum of AIRS over the spectrum, with weights being the inverse of the mean of the signals, i.e., all 282 time series should have equal importance regardless of magnitude.
+\end{enumerate}
+The $r^2$ from the first and last transits are used directly in the linear regression for producing the final depth for the submission. The second transit is included because simply summing AIRS across the spectrum has a lower noise than the other two time series, and basing the computation of $d_{min}$, $t_{min}$, and $t_{length}$ on the least noisy data produces the best result.
 
-Stages:
+The transits are optimized jointly, so that they share parameters $d_{min}$, $t_{min}$, and $t_{length}$. $v$ is a frozen hyperparameter, and $r$ and $u$ are optimized independently for the three time series. I minimize a weighted sum of the mean squared errors from the three time series, with a higher weight on the second time series. The transit itself is a graph between 0 and 1, so in order match the signal, it is scaled by a polynomial $f$ whose coefficients are computed with linear regression. These coefficients are computed independently for each of the three time series, and they are not treated as parameters, i.e., the transit is defined by its parameters, and the polynomial $f$ is then chosen to minimize the mean squared error against the signal. Additionally, I apply L2 regularization to the coefficients of $f$ for terms with degree at least 2.
 
-Last year's first place solution: \url{https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/c-number-daiwakun-1st-place-solution}.
+To initialize the optimization, $t_{min}$ and $t_{length}$ are derived from the given transit start and transit end. $r$ is defined by the given depth, and $u$ and $d_{min}$ are set relatively arbitrarily to typical such values. The mean squared error is minimized with Adam, with $\beta_1 = 0.8$ and a cosine learning rate schedule with warm-up. We perform three stages of optimization, each for 100 iterations, with an increasing degree of freedom for the polynomial $f$. The reason that $f$ is not just unconstrained is that it would then adjust to the signal dip, before the appropriate depth was reflected in the parameters. For the first stage we also only use data from inside the transit, since the degree of $f$ is limited to 1. The optimization parameters for the three stages are as follows. Each stage starts with the parameters from the previous stage.
+
+\begin{center}
+\begin{tabular}{|c||c|c|c|c|}
+\hline
+Stage & Learning rate & Polynomial degree & Regularization & Transit data only\\
+\hline
+1 & 0.011 & 1 & Not relevant & Yes \\
+2 & 0.006 & 4 & 3000 & No \\
+3 & 0.001 & 4 & 75 & No \\
+\hline
+\end{tabular}
+\end{center}
+
+Next, we perform similar computations for all 282 time series in the AIRS spectrum. The initial parameters are taken from the third time series above and broadcasted to all 282 time series. The parameters for $d_{min}$, $t_{min}$, and $t_{length}$ remain frozen throughout the rest of the computation. We will also always be using all the data, unlike the first stage above, and the polynomial degree and regularization will remain 4 and 75, respectively. For the fourth stage, $u$ also remains frozen. Thus, we compute $r$ and the polynomial $f$ independently for each time series. The fourth stage again consists of 100 iterations, and it uses the following learning rate.
+
+\begin{center}
+\begin{tabular}{|c||c|c|}
+\hline
+Stage & Learning rate & Iterations \\
+\hline
+4 & 0.007 & 100 \\
+\hline
+\end{tabular}
+\end{center}
+
+Next, we want to incorporate the \emph{gain drift} into the computation. This part is based on last year's first place solution: \url{https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/c-number-daiwakun-1st-place-solution}. They observed that the data generated by the ExoSim2 simulator used a gain drift factor $1 + f(t) \cdot g(\lambda)$, where $f$ is a polynomial of time, similar to what I used above, and $g$ is a polynomial of the wavelength. They used polynomials of degree four, and so will I. At time $t$ and wavelength $\lambda$, the overall prediction is then of the form:
+\[
+y_{pred}(t, \lambda) ~=~ I(\lambda) \cdot transit(t, r_\lambda, u_\lambda, v, d_{min}, t_{min}, t_{length}) \cdot (1 + f(t) \cdot g(\lambda)),
+\]
+where $I(\lambda)$ is the intensity of the star at wavelength $\lambda$, $transit(t, r_\lambda, u_\lambda, v, d_{min}, t_{min}, t_{length})$ is the transit factor at time $t$ and wavelength $\lambda$, and $(1 + f(t) \cdot g(\lambda))$ is the gain drift.
+
+In order to stabilize the computation, I alternate between optimizing the coefficients of $f$ and $g$ and optimizing the vectors $r$ and $u$. When optimizing $r$ and $u$, the intensity $I(\lambda)$ is derived independently for each $\lambda$ with linear regression, as it was done for $f$ in the first three stages, i.e., $I(\lambda)$ is treated as a polynomial of degree zero. When optimizing $f$ and $g$, the intensity and the transit are fixed from the previous stage, and the coefficients of $g$ are again derived with linear regression. Thus, we never treat coefficients of $g$ as true parameters. I perform three such alternations with the following learning rates.
+
+\begin{center}
+\begin{tabular}{|c||c|c|c|}
+\hline
+Stage & Optimized parameters & Learning rate & Iterations\\
+\hline
+5 & $f$ & 200 & 120 \\
+6 & $r$ and $u$ & 0.005 & 50 \\
+7 & $f$ & 0.1 & 60 \\
+8 & $r$ and $u$ & 0.002 & 50 \\
+9 & $f$ & 0.03 & 60 \\
+10 & $r$ and $u$ & 0.001 & 50 \\
+\hline
+\end{tabular}
+\end{center}
+
+I regularize the vector $u$ during these last stages by adding $200 \cdot \text{var}(\text{diff}(u)) / \text{mean}(u)$ to the error,
+where $\text{var}(\text{diff}(u))$ is the variance of one-step differences of $u$, and $\text{mean}(u)$ is the mean of $u$. This is done to ensure that $u$ changes smoothly over the spectrum. $r$ remains noisy, however, at this stage. I also use L2 regularization for $f$ and $g$. For $f$ regularization is applied to terms with degree at least 2, and for $g$ regularization is applied to terms with degree at least 1.
+
+\subsection{Spectrum smoothing and final depth estimation}\label{subsec:linear_regression}
+
+The depth, i.e., $r^2$, provided to the submission is obtained with simple linear regression on the $r^2$ parameters produced in the previous section. For planets with multiple instances, the average depth is used for the submission. Before applying linear regression, the AIRS spectrum is smoothed with a Kalman Smoother in the same way as described in Section~\ref{sec:depth}. Recall from Section~\ref{sec:preprocessing} that parts of the spectrum are missing, in case there were important missing pixels. This issue is fixed by the Kalman Smoother, since it works even with missing values.
+
+The linear regression for AIRS uses the features:
+\begin{enumerate}
+\item 
+$r^2$ from the third transit, weighted sum of AIRS, after stage 3 in Section~\ref{subsec:params}, broadcasted to the entire spectrum.
+\item 
+The mean of the smoothed $r^2$ for the spectrum, broadcasted to the entire spectrum.
+\item 
+The difference between the smoothed $r^2$ for the spectrum and its mean.
+\item 
+Possibly a feature derived with principal component analysis (PCA) as described in Section~\ref{sec:pca}.
+\end{enumerate}
+The linear regression for FGS1 uses only a single feature:
+\begin{enumerate}
+\item 
+$r^2$ from the first transit, FGS1, after stage 3 in Section~\ref{subsec:params}.
+\end{enumerate}
+
+The training data contained outliers that reduced the quality of the solution. This was handled simply by omitting the 18 planets with worst mean squared error from the linear regression.
 
 
-\section{Computation of uncertainty}
+\section{Computation of uncertainty}\label{sec:uncertainty}
 
 The standard deviation component of the solution is computed with two independent Neural networks, one for AIRS and one for FGS1. I use 11 features for AIRS and 7 features for FGS1. The features are described below.
 
@@ -311,7 +408,7 @@ The absolute value of the difference between feature 1 and the predicted $r^2$ f
 \item 
 The predicted value of the limb darkening coefficient $u$.
 \item 
-The predicted value of the transit length $t$.
+The predicted value of the transit length $t_{length}$.
 \item 
 The predicted minimum distance $d_{min}$.
 \item 
@@ -331,7 +428,7 @@ For FGS1 I use the same features as for AIRS, computed with data from FGS1, but 
 
 
 
-\section{Principal component analysis (PCA)}
+\section{Principal component analysis (PCA)}\label{sec:pca}
 
 Applying principal component analysis (PCA) to the ARIEL target spectrum revealed that a small number of eigenvectors explained most of the variance. This is because certain molecules are more likely to make up the atmosphere of a planet. The idea of using PCA came from last year's second place solution: \url{https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/jeroen-cottaar-2nd-place-solution-pure-bayesian-in}.
 By target spectrum, I mean the matrix obtained by subtracting for each row of the target matrix the mean of that row. I only do this for the AIRS part of the data. I chose to use 7 components, which explained more than 99.5\% of the variance.
@@ -383,7 +480,7 @@ It is a definite downside to my approach that the depth estimate is computed ent
 
 \section{Are we alone in the universe?}
 
-The Fermi Paradox asks "Why are there no signs of intelligence elsewhere in the universe?" The opportunities for life to appear are literally astronomical. I would argue, however, that astronomical numbers are quite small in this context, since they are only polynomial in nature. The probability of intelligent life appearing may very well be exponential in nature, for example if an initial critical step is for a sequence of genes to randomly come together in a specific order. Even with slower growing functions than exponentials, the inverse of the probability of intelligent life may dwarf any number in the astronomical range. Thus, it may be plausible that the answer to the question "Are we alone in an infinite universe?" is no, while the answer to "Are we alone in the observable universe?" is yes with very high probability. This all assumes that life appears spontaneously. In a distant future it seems plausible that humanity will seed other planets with life. Perhaps life on Earth itself originates from such seeds planted by other civilizations or higher entities. Just something to keep in mind: If life was seeded by ancient civilizations, how should that affect the way that we search for it?
+The Fermi Paradox asks "Why are there no signs of intelligence elsewhere in the universe?" The opportunities for life to appear are literally astronomical. I would argue, however, that astronomical numbers are quite small in this context, since they are only polynomial in nature. The probability of intelligent life appearing may very well be exponential in nature, for example if an initial critical step is for a sequence of molecules to randomly come together in a specific order. Even with slower growing functions than exponentials, the inverse of the probability of intelligent life may dwarf any number in the astronomical range. Thus, it may be plausible that the answer to the question "Are we alone in an infinite universe?" is no, while the answer to "Are we alone in the observable universe?" is yes with very high probability. This all assumes that life appears spontaneously. In a distant future it seems plausible that humanity will seed other planets with life. Perhaps life on Earth itself originates from such seeds planted by other civilizations or higher entities. Just something to keep in mind: If life was seeded by ancient civilizations, how should that affect the way that we search for it?
 
 %\bibliographystyle{abbrv}
 %%\bibliographystyle{plain}
