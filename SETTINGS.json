@@ -1,5 +1,5 @@
 {
-    "RAW_DATA_DIR": "/mnt/d/kaggle/ariel_2025/data/ariel-data-challenge-2025",
+    "RAW_DATA_DIR": "./data/ariel-data-challenge-2025",
     "MODEL_CHECKPOINT_DIR": "./models/",
     "CACHE_DIR": "./cache/",
     "LOCAL_CACHE_DIR": "./local_cache/",
