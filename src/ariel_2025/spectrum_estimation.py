@@ -1,6 +1,6 @@
 import os
 
-os.environ["JAX_PLATFORM_NAME"] = "cpu"
+#os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 import pandas as pd
 import numpy as np

@@ -151,6 +151,7 @@ def apply_kalman_smoother(x, window=255, level_change_scaler=0.1, trend_change_s
     vmapped_get_kalman_initialization = jax.jit(vmapped_get_kalman_initialization, static_argnames=['window', 'level_change_scaler', 'trend_change_scaler', 'noise_scaler'])
     vmapped_kalman_smoother = jax.jit(vmapped_kalman_smoother)
 
+    # The following matrices define a local linear trend model. See, e.g., https://www.statsmodels.org/dev/examples/notebooks/generated/statespace_local_linear_trend.html
     A = jnp.array([
         [1, 1],
         [0, 1]

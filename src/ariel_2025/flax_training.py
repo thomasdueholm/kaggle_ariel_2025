@@ -316,8 +316,6 @@ class MLP(nn.Module):
 
     @nn.compact
     def __call__(self, x, train: bool):
-        #print('MLP input_size:', x.shape)
-
         x = x.astype(jnp.float64)
         x = jnp.clip(x, -self.input_clipping_threshold, self.input_clipping_threshold)
 
