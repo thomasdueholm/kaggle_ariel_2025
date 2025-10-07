@@ -2,7 +2,7 @@
 
 Competition: https://www.kaggle.com/competitions/ariel-data-challenge-2025
 
-Documentation can be found in model_summary.pdf.
+Documentation can be found in model_summary/model_summary.pdf.
 
 ## Hardware and OS/platform
 

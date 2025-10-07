@@ -134,7 +134,7 @@ I treat hot and dead pixels as missing values. I replace such missing values wit
 
 I use a rolling window of length 255 to discard outliers beyond five standard deviations from the centered rolling mean, again treating such values as missing.
 
-Inspired by last year's first place solution (see \url{https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/c-number-daiwakun-1st-place-solution}), I use the rim of the image to estimate foreground noise, which I then subtract from the center of the image. Except, I do not explicitly use the rim as in last year's first place solution. Instead I use the six rows with lowest intensity for AIRS, and the six columns and then six rows with lowest intensity for FGS1. Figure~\ref{fig:foreground} illustrates the foreground noise processing step.
+Inspired by last year's first place solution (see \url{https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/c-number-daiwakun-1st-place-solution}), I use the rim of the image to estimate foreground noise, which I then subtract from the center of the image. Except, I do not explicitly use the rim as in last year's first place solution. Instead I use the six rows with lowest intensity for AIRS, and the six columns and then six rows with lowest intensity for FGS1. Figure~\ref{fig:foreground} illustrates the foreground noise processing step. Note that the foreground noise is not uniform, so I may actually throw away too much of the data.
 
 \begin{figure}
 \begin{center}
@@ -245,6 +245,7 @@ initialization
 
 Stages:
 
+Last year's first place solution: \url{https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/c-number-daiwakun-1st-place-solution}.
 
 
 \section{Computation of uncertainty}
@@ -332,6 +333,15 @@ For FGS1 I use the same features as for AIRS, computed with data from FGS1, but 
 
 \section{Principal component analysis (PCA)}
 
+Applying principal component analysis (PCA) to the ARIEL target spectrum revealed that a small number of eigenvectors explained most of the variance. This is because certain molecules are more likely to make up the atmosphere of a planet. The idea of using PCA came from last year's second place solution: \url{https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/jeroen-cottaar-2nd-place-solution-pure-bayesian-in}.
+By target spectrum, I mean the matrix obtained by subtracting for each row of the target matrix the mean of that row. I only do this for the AIRS part of the data. I chose to use 7 components, which explained more than 99.5\% of the variance.
+
+For each AIRS spectrum obtained from the limb darkening model from Section~\ref{sec:limb_darkening}, I fit a linear regression model on the 7 most significant eigenvectors to the spectrum of interest, i.e., I find the best way to approximate the spectrum with spectra from the original target matrix. I then use this approximation as a replacement for the given spectrum, the idea being that the original target data is more accurate than the estimates produced by the limb darkening model.
+
+It is possible that the planet in question is not well represented by the training data. In that case relying on the PCA spectrum replacement would produce worse results. I therefore check whether the Euclidean distance of the original spectrum and the replacement spectrum is below the threshold 0.0015. The threshold is chosen such that about 90\% of the training data itself would use PCA replacement. I use the PCA replacement spectrum if that is the case, otherwise I only use the original spectrum. To make this distinction I train two entirely separate models on all the data: One with and one without the PCA spectrum.
+
+When using the PCA replacement spectrum, it does not technically replace the original spectrum. It appears as an additional feature in the linear regression model for depth estimation. The PCA spectrum generally dominates the original spectrum, however, being assigned about 20 times as high a weight.
+
 
 \section{Ensembling}
 
@@ -364,7 +374,12 @@ I removed some unused code for the final version, but I verified that this did n
 
 \section{Conclusion}
 
-...
+The limb darkening model from Section~\ref{sec:limb_darkening} produces good depth estimates by itself, and one can imagine further extensions of the model that include additional physics simulations. The way the transit is computed with a discrete integral is very memory inefficient, and it is the performance bottleneck for my submission. It is a small piece of code, and it should be possible to significantly speed up this computation, maybe even by writing a small custom kernel.
+
+The downside of the limb darkening model is that it is very specific to this problem, and achieving high quality results is quite tedious. General purpose models are more likely to be optimized and to be well understood by the research community, so using a very bespoke model is a definite disadvantage. Perhaps the real underlying research question here is to develop optimization techniques that perform well on a wide range of bespoke models. In order for that to be a successful area of research it would require that a large number of bespoke models were made easily available for research. That is clearly outside the scope of the Ariel Challenge, however.
+
+It is a definite downside to my approach that the depth estimate is computed entirely independently of the standard deviation. I would expect that improvements can be made on this front, possibly be adding a correction that is computed together with the standard deviation. I briefly tried this, but it caused overfitting, so I gave up on the idea. I would also expect that it should be possible to make a better model for standard deviation by itself. I generally did not put much time into this area.
+
 
 \section{Are we alone in the universe?}
 

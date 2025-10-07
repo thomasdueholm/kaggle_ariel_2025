@@ -195,7 +195,7 @@ def plot_correlation(data, hierarchy_threshold, pca_threshold=0.9, title='', lab
             cumulative_eigenvalue[1:] = cumulative_eigenvalue[:-1]
             cumulative_eigenvalue[0] = 0
 
-            pca_number = [x + 1 for x in range(len(eigenvalue_proportion))]
+            pca_number = np.arange(len(eigenvalue_proportion))
             plt.plot(pca_number, cumulative_eigenvalue, label=f'{cluster}')
 
     plt.legend()
