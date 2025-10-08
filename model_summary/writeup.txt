@@ -52,7 +52,7 @@ The beginning, middle, and end of the transit are identified with the first Kalm
 
 My model that explicitly takes into account limb darkening simulates a planet moving in front of a star, and estimates the amount of light observed at every time step. Limb darkening means that the intensity of the star is highest at the center and is reduced toward the edge (the limb). The formula that I use for limb darkening is based on [this note](https://www.astro.uvic.ca/~tatum/stellatm/atm6.pdf). The exact formula used is:
 
-intensity(x, u, v) = 1 - u * ((1 - v) * (1 - \sqrt{1 - x^2}) + v \cdot x^2),
+intensity(x, u, v) = 1 - u * ((1 - v) * (1 - \sqrt{1 - x^2}) + v * x^2),
 
 where x is the distance to the center of the star, assuming that the star has radius 1, and u and v are parameters that depend on the star. Unfortunately, I made a sign error in my code and changed the last plus into a minus, which meant that v behaved unexpectedly, so I gave up on directly optimizing v and instead treated it as a hyperparameter.
 
@@ -115,7 +115,7 @@ The linear regression for FGS1 uses only a single feature:
 
 The training data contained outliers that reduced the quality of the solution. This was handled simply by omitting the 18 planets with worst mean squared error from the linear regression.
 
-## 5. Computation of uncertainty
+# 5. Computation of uncertainty
 
 The standard deviation component of the solution is computed with two independent Neural networks, one for AIRS and one for FGS1. I use 11 features for AIRS and 7 features for FGS1. The features are described in [the full documentation](https://github.com/thomasdueholm/kaggle_ariel_2025/blob/main/model_summary/model_summary.pdf). The most important feature was the limb darkening coefficient u.
 
@@ -125,10 +125,9 @@ The inputs for the MLPs are normalized with a StandardScaler, i.e., I subtract t
 
 For AIRS, the hidden dimension and dropout are 256 and 0.4. For FGS1, the hidden dimension and dropout are 32 and 0.1. In both cases I use an Adam optimizer with weight decay. For AIRS I trained for 5 epochs, and for FGS1 I trained for 150 epochs. Note that there was much more training data for AIRS due to working with a spectrum, which explains why it worked better with fewer epochs.
 
-## 6. Principal component analysis (PCA)
+# 6. Principal component analysis (PCA)
 
-Applying principal component analysis (PCA) to the ARIEL target spectrum revealed that a small number of eigenvectors explained most of the variance. This is because certain molecules are more likely to make up the atmosphere of a planet. The idea of using PCA came from [last year's second place solution](https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/jeroen-cottaar-2nd-place-solution-pure-bayesian-in).
-By target spectrum, I mean the matrix obtained by subtracting for each row of the target matrix the mean of that row. I only do this for the AIRS part of the data. I chose to use 7 components, which explained more than 99.5% of the variance.
+Applying principal component analysis (PCA) to the ARIEL target spectrum revealed that a small number of eigenvectors explained most of the variance. This is because certain molecules are more likely to make up the atmosphere of a planet. The idea of using PCA came from [last year's second place solution](https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/jeroen-cottaar-2nd-place-solution-pure-bayesian-in). By target spectrum, I mean the matrix obtained by subtracting for each row of the target matrix the mean of that row. I only do this for the AIRS part of the data. I chose to use 7 components, which explained more than 99.5% of the variance.
 
 For each AIRS spectrum obtained from the limb darkening model from Section 4, I fit a linear regression model on the 7 most significant eigenvectors to the spectrum of interest, i.e., I find the best way to approximate the spectrum with spectra from the original target matrix. I then use this approximation as a replacement for the given spectrum, the idea being that the original target data is more accurate than the estimates produced by the limb darkening model.
 
@@ -136,11 +135,11 @@ It is possible that the planet in question is not well represented by the traini
 
 When using the PCA replacement spectrum, it does not technically replace the original spectrum. It appears as an additional feature in the linear regression model for depth estimation. The PCA spectrum generally dominates the original spectrum, however, being assigned about 20 times as high a weight.
 
-## 7. Ensembling
+# 7. Ensembling
 
 Both with and without PCA I train five models and average the result, so in total I train ten models with different seeds. This number could have been much larger while staying within the time limit, but I did not experiment with this aspect.
 
-## 8. Computation time
+# 8. Computation time
 
 I processed data and trained models locally with an RTX 5090. In total, the running time of a Kaggle notebook with a P100 was about twice as long as with my RTX 5090. I expected a higher speedup with a significantly faster GPU, but the code has not been properly optimized (the electricity consumption was very low), and calculations are generally performed with 64 bit precision. The time spent on the individual steps with an RTX 5090 was:
 
@@ -149,7 +148,7 @@ I processed data and trained models locally with an RTX 5090. In total, the runn
 - Depth estimation with limb darkening (Section 4): 3 hours and 35 minutes.
 - Model training: 11 minutes.
 
-## 8. Conclusion
+# 9. Conclusion
 
 The limb darkening model from Section 4 produces good depth estimates by itself, and one can imagine further extensions of the model that include additional physics simulations. The way the transit is computed with a discrete integral is very memory inefficient, and it is the performance bottleneck for my submission. It is a small piece of code, and it should be possible to significantly speed up this computation, maybe even by writing a small custom kernel.
 
@@ -157,6 +156,6 @@ The downside of the limb darkening model is that it is very specific to this pro
 
 It is a definite downside to my approach that the depth estimate is computed entirely independently of the standard deviation. I would expect that improvements can be made on this front, possibly be adding a correction that is computed together with the standard deviation. I briefly tried this, but it caused overfitting, so I gave up on the idea. I would also expect that it should be possible to make a better model for standard deviation by itself. I generally did not put much time into this area.
 
-## 9. Are we alone in the universe?
+# 10. Are we alone in the universe?
 
 The Fermi Paradox asks "Why are there no signs of intelligence elsewhere in the universe?" The opportunities for life to appear are literally astronomical. I would argue, however, that astronomical numbers are quite small in this context, since they are only polynomial in nature. The probability of intelligent life appearing may very well be exponential in nature, for example if an initial critical step is for a sequence of molecules to randomly come together in a specific order. Even with slower growing functions than exponentials, the inverse of the probability of intelligent life may dwarf any number in the astronomical range. Thus, it may be plausible that the answer to the question "Are we alone in an infinite universe?" is no, while the answer to "Are we alone in the observable universe?" is yes with very high probability. This all assumes that life appears spontaneously. In a distant future it seems plausible that humanity will seed other planets with life. Perhaps life on Earth itself originates from such seeds planted by other civilizations or higher entities. Just something to keep in mind: If life was seeded by ancient civilizations, how should that affect the way that we search for it?
