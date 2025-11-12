@@ -302,6 +302,15 @@ if __name__ == '__main__':
             'transit_middle': 0.5,
             'transit_length': 0.7,
             'time': 0.2
+        },
+        {
+            'r_squared': 0.04,
+            'u': 0.5,
+            'v': 0.025,
+            'd_min': 0.4,
+            'transit_middle': 0.5,
+            'transit_length': 0.7,
+            'time': 0.4
         }
     ]
 
@@ -327,6 +336,14 @@ if __name__ == '__main__':
             'u': 0.0,
             'v': 0.0,
             'd_min': 0.95,
+            'transit_middle': 0.5,
+            'transit_length': 0.7
+        },
+        {
+            'r_squared': 0.04,
+            'u': 0.5,
+            'v': 0.025,
+            'd_min': 0.4,
             'transit_middle': 0.5,
             'transit_length': 0.7
         }
